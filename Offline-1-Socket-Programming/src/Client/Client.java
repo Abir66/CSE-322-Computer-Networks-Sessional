@@ -1,5 +1,8 @@
 package Client;
 
+import Server.ENV;
+import Util.NetworkUtil;
+
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -9,12 +12,11 @@ import java.util.Scanner;
 public class Client {
     public static void main(String[] args) throws IOException, ClassNotFoundException {
 
-        Socket socket = new Socket("localhost", 6666);
-        System.out.println("Connection established");
+        NetworkUtil textSocket = new NetworkUtil(ENV.SERVER_IP, ENV.SERVER_PORT);
+        NetworkUtil fileSocket = new NetworkUtil(ENV.SERVER_IP, ENV.SERVER_FILE_PORT);
+        NetworkUtil fileUploadSocket = new NetworkUtil(ENV.SERVER_IP, ENV.FILE_UPLOAD_PORT);
 
-        // buffers
-        ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-        ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+        System.out.println("Connection established");
 
         // scan username
         Scanner scanner = new Scanner(System.in);
@@ -23,22 +25,21 @@ public class Client {
         username = scanner.nextLine();
 
         // send username
-        out.writeObject(username);
-        out.flush();
+        textSocket.write(username);
 
         // wait for response
-        String response = (String) in.readObject();
+        String response = (String) textSocket.read();
         System.out.println(response);
 
         if (response.equals("DUPLICATE_USER_ERROR")){
             System.out.println("You are already logged in another client.");
             System.out.println("Closing connection...");
-            socket.close();
+            textSocket.closeConnection();
             return;
         }
 
-        Thread writeThread = new Thread(new ClientWriteThread(socket, out, username));
-        Thread readThread = new Thread(new ClientReadThread(socket, in));
+        Thread writeThread = new Thread(new ClientWriteThread(textSocket, fileSocket, fileUploadSocket, username));
+        Thread readThread = new Thread(new ClientReadThread(textSocket));
 
         writeThread.start();
         readThread.start();

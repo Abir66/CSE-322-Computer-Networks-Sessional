@@ -1,11 +1,13 @@
 package Database;
 
+import Util.NetworkUtil;
+
 import java.net.Socket;
 import java.util.ArrayList;
 
 public class User {
     String username;
-    Socket socket;
+    NetworkUtil textSocket;
     boolean isLoggedIn = false;
 
     ArrayList<String> publicFiles = new ArrayList<>();
@@ -19,8 +21,8 @@ public class User {
         return username;
     }
 
-    public Socket getSocket() {
-        return socket;
+    public NetworkUtil getSocket() {
+        return textSocket;
     }
 
     public boolean getIsLoggedIn() {
@@ -31,8 +33,8 @@ public class User {
         this.isLoggedIn = isLoggedIn;
     }
 
-    public void setSocket(Socket socket) {
-        this.socket = socket;
+    public void setSocket(NetworkUtil socket) {
+        this.textSocket = socket;
     }
 
     public void addPublicFile(String filename) {
@@ -59,7 +61,7 @@ public class User {
         }
     }
 
-
+    
     @Override
     public String toString() {
         return username;

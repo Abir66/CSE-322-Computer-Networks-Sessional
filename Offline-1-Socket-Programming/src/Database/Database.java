@@ -1,7 +1,8 @@
 package Database;
 
+import Util.NetworkUtil;
+
 import java.io.File;
-import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -12,9 +13,10 @@ public class Database {
     private static Database instance = null;
 
     // list of users
-    private static List<User> users = new ArrayList<>();
-    private static HashMap<String, User> loggedInUsers = new HashMap<>();
-    //private static HashMap<String, Socket> userSocketMap = new HashMap<>();
+    private List<User> users = new ArrayList<>();
+    private HashMap<String, User> loggedInUsers = new HashMap<>();
+    private long totalChunkSize = 0;
+    private int fileID = 0;
 
     private Database() {
     }
@@ -42,18 +44,11 @@ public class Database {
         }
 
 
-        // print the files
-        for (User user : users) {
+        for(User user : users){
             System.out.println("User : " + user.username);
-            System.out.println("Public Files : ");
-            for (String file : user.getPublicFiles()) {
-                System.out.println(file);
-            }
-            System.out.println("Private Files : ");
-            for (String file : user.getPrivateFiles()) {
-                System.out.println(file);
-            }
+
         }
+
     }
 
     public User addUser(String username) {
@@ -71,6 +66,7 @@ public class Database {
     }
 
     public User getUser(String username) {
+        System.out.println("Finding user : " + username);
         for (User user : users) {
             if (user.getUsername().equals(username)) {
                 return user;
@@ -79,12 +75,12 @@ public class Database {
         return null;
     }
 
-    public void addLoggedInUser(String username, Socket socket) {
+    public void addLoggedInUser(String username, NetworkUtil socket) {
         User user = getUser(username);
         addLoggedInUser(user, socket);
     }
 
-    public void addLoggedInUser(User user, Socket socket) {
+    public void addLoggedInUser(User user, NetworkUtil socket) {
         loggedInUsers.put(user.getUsername(), user);
         user.setIsLoggedIn(true);
         user.setSocket(socket);
@@ -107,4 +103,42 @@ public class Database {
         return users;
     }
 
+    public String getFilePath(String filename, String owner, String requester){
+
+        User user = getUser(owner);
+
+        if(user == null) return "USER_NOT_FOUND";
+
+        if(user.getPublicFiles().contains(filename))
+            return "Files/" + owner + "/public/" + filename;
+
+        if(user.getPrivateFiles().contains(filename)){
+            if(requester.equals(owner))
+                return "Files/" + owner + "/private/" + filename;
+            else
+                return "ACCESS_DENIED";
+        }
+
+        return "FILE_NOT_FOUND";
+    }
+
+    public synchronized long getTotalChunkSize() {
+        return totalChunkSize;
+    }
+
+    public synchronized void setTotalChunkSize(long totalChunkSize) {
+        this.totalChunkSize = totalChunkSize;
+    }
+
+    public synchronized void addChunk(long chunkSize) {
+        this.totalChunkSize += chunkSize;
+    }
+
+    public synchronized void removeChunk(long chunkSize) {
+        this.totalChunkSize -= chunkSize;
+    }
+
+    public synchronized int getNewFileID() {
+        return ++fileID;
+    }
 }

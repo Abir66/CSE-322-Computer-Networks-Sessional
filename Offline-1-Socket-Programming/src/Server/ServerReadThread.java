@@ -2,25 +2,22 @@ package Server;
 
 import Database.Database;
 import Database.User;
-
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
+import Util.NetworkUtil;
 
 
 public class ServerReadThread implements Runnable{
 
-    Socket socket;
-    ObjectInputStream in;
-    ObjectOutputStream out;
+    NetworkUtil textSocket;
+    NetworkUtil fileSocket;
+    NetworkUtil fileUploadSocket;
     String username;
     Database database;
 
 
-    public ServerReadThread(Socket socket, ObjectInputStream in, ObjectOutputStream out, String username) {
-        this.socket = socket;
-        this.in = in;
-        this.out = out;
+    public ServerReadThread(NetworkUtil textSocket, NetworkUtil fileSocket, NetworkUtil fileUploadSocket, String username) {
+        this.textSocket = textSocket;
+        this.fileSocket = fileSocket;
+        this.fileUploadSocket = fileUploadSocket;
         this.username = username;
         database = Database.getInstance();
     }
@@ -28,16 +25,16 @@ public class ServerReadThread implements Runnable{
     @Override
     public void run() {
 
-        while(socket.isConnected()){
+        while(!textSocket.isClosed()){
 
             try{
-                String input = (String) in.readObject();
-                String[] inputArray = input.split(" ", 2);
+                String input = (String) textSocket.read();
+                String[] inputArray = input.split(" ");
                 String command = inputArray[0];
 
                 if(command.equalsIgnoreCase("logout")){
                     database.removeLoggedInUser(username);
-                    socket.close();
+                    textSocket.closeConnection();
                     return;
                 }
 
@@ -53,8 +50,7 @@ public class ServerReadThread implements Runnable{
                         userListString.append("\n");
                     }
                     userListString.append("------------------------------------");
-                    out.writeObject(userListString.toString());
-                    out.flush();
+                    textSocket.write(userListString.toString());
                 }
 
                 else if(command.equalsIgnoreCase("showFiles")){
@@ -70,8 +66,7 @@ public class ServerReadThread implements Runnable{
 
                     if(targetUser == null){
                         fileListString.append("User " + targetUsername + " does not exist\n");
-                        out.writeObject(fileListString.toString());
-                        out.flush();
+                        textSocket.write(fileListString.toString());
                         continue;
                     }
 
@@ -97,11 +92,46 @@ public class ServerReadThread implements Runnable{
                     if (fileList.size() == 0) fileListString.append("User " + targetUsername + " has no Private Files\n");
 
                     fileListString.append("------------------------------------");
-                    out.writeObject(fileListString.toString());
-                    out.flush();
+                    textSocket.write(fileListString.toString());
+                }
+
+                else if(command.equalsIgnoreCase("download")){
+
+                    if(inputArray.length < 3) {
+                        textSocket.write("Invalid no of arguments");
+                        continue;
+                    }
+
+                    String filepath = database.getFilePath(inputArray[2], inputArray[1], username);
+
+                    if(!filepath.startsWith("Files/")){
+                        textSocket.write(filepath);
+                        continue;
+                    }
+
+                    Thread fileThread = new Thread(new FileSender(fileSocket, filepath));
+                    fileThread.start();
                 }
 
 
+                else if(command.equalsIgnoreCase("upload")){
+                    System.out.println(input);
+
+                    long filesize = Long.parseLong(inputArray[3]);
+
+                    // if file size is greater than 1GB
+                    if(filesize + database.getTotalChunkSize() > ENV.MAX_BUFFER_SIZE){
+                        System.out.println("file size : " + filesize + " total chunk size : " + database.getTotalChunkSize());
+                        fileUploadSocket.write("FILE_SIZE_EXCEEDED");
+                        continue;
+                    }
+
+                    int randomChunkSize = (int) (Math.random() * (ENV.MAX_CHUNK_SIZE - ENV.MIN_CHUNK_SIZE + 1) + ENV.MIN_CHUNK_SIZE);
+                    int fileID = database.getNewFileID();
+
+                    Thread fileThread = new Thread(new FileReceiver(fileUploadSocket, fileID, inputArray[1], inputArray[2], filesize, randomChunkSize, username));
+                    fileThread.start();
+                }
 
 
             }catch (Exception e){

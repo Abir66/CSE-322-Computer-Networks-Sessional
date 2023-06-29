@@ -1,24 +1,24 @@
 package Client;
 
+import Util.NetworkUtil;
+
 import java.io.ObjectInputStream;
 import java.net.Socket;
 
 public class ClientReadThread implements Runnable {
 
-    Socket socket;
-    ObjectInputStream in;
+    NetworkUtil textSocket;
 
-    public ClientReadThread(Socket socket, ObjectInputStream in) {
-        this.socket = socket;
-        this.in = in;
+    public ClientReadThread(NetworkUtil textSocket) {
+        this.textSocket = textSocket;
     }
 
     @Override
     public void run() {
-        while (socket.isConnected()) {
+        while (!textSocket.isClosed()){
             try {
-                String response = (String) in.readObject();
-                System.out.println(response);
+                String response = (String) textSocket.read();
+                System.out.println("here : " + response);
                 System.out.print("> ");
             } catch (Exception e) {
                 e.printStackTrace();

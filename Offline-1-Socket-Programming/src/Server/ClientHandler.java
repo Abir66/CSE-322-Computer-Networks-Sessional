@@ -1,6 +1,7 @@
 package Server;
 
 import Database.*;
+import Util.NetworkUtil;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -9,21 +10,16 @@ import java.net.Socket;
 
 public class ClientHandler implements Runnable {
 
-    Socket socket;
-    ObjectOutputStream out;
-    ObjectInputStream in;
+    NetworkUtil textSocket;
+    NetworkUtil fileSocket;
+    NetworkUtil fileUploadSocket;
     Database database;
 
-    public ClientHandler(Socket socket) {
-        this.socket = socket;
+    public ClientHandler(NetworkUtil socket, NetworkUtil fileSocket, NetworkUtil fileUploadSocket) {
+        this.textSocket = socket;
+        this.fileSocket = fileSocket;
+        this.fileUploadSocket = fileUploadSocket;
         database = Database.getInstance();
-
-        try {
-            out = new ObjectOutputStream(socket.getOutputStream());
-            in = new ObjectInputStream(socket.getInputStream());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     @Override
@@ -31,13 +27,14 @@ public class ClientHandler implements Runnable {
 
         String username = null;
         try {
-            username = (String) in.readObject();
+            username = (String) textSocket.read();
 
             // if logged in already send error message and close connection
             if (database.userLoggedIn(username)) {
-                out.writeObject("DUPLICATE_USER_ERROR");
-                out.flush();
-                socket.close();
+                textSocket.write("DUPLICATE_USER_ERROR");
+                textSocket.closeConnection();
+                fileSocket.closeConnection();
+                fileUploadSocket.closeConnection();
                 return;
             }
 
@@ -47,14 +44,20 @@ public class ClientHandler implements Runnable {
             if (user == null) user = database.addUser(username);
 
             // add user to logged in users
-            database.addLoggedInUser(user, socket);
+            database.addLoggedInUser(user, textSocket);
 
             // send success message
-            out.writeObject("SUCCESS");
-            out.flush();
+            textSocket.write("SUCCESS");
+
+            System.out.println("User - " + username + " logged in successfully");
+
+            // set user in the sockets
+            textSocket.setUser(user);
+            fileSocket.setUser(user);
+            fileUploadSocket.setUser(user);
 
             // create a new thread for the client
-            Thread readThread = new Thread(new ServerReadThread(socket, in, out, username));
+            Thread readThread = new Thread(new ServerReadThread(textSocket, fileSocket, fileUploadSocket, username));
             readThread.start();
 
         } catch (IOException | ClassNotFoundException e) {
