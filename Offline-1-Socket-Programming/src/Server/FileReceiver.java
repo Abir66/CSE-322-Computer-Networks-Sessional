@@ -1,6 +1,6 @@
 package Server;
 
-import Database.Database;
+import Database.*;
 import Util.NetworkUtil;
 
 import java.io.File;
@@ -9,22 +9,20 @@ import java.io.FileOutputStream;
 public class FileReceiver implements Runnable {
 
     private NetworkUtil fileUploadSocket;
-    private int fileID;
+
     private int chunkSize;
-    private String saveAs;
-    private String username;
-    private String privacy;
+    private User user;
     private long filesize;
     private Database database = Database.getInstance();
+    private UserFile userFile;
 
-    public FileReceiver(NetworkUtil fileUploadSocket, int fileID, String privacy, String filename, long filesize, int chunkSize, String username) {
+
+    public FileReceiver(NetworkUtil fileUploadSocket, UserFile userFile, long filesize, int randomChunkSize) {
         this.fileUploadSocket = fileUploadSocket;
-        this.fileID = fileID;
-        this.saveAs = filename;
-        this.username = username;
-        this.privacy = privacy;
+        this.user = userFile.getOwner();
         this.filesize = filesize;
-        this.chunkSize = chunkSize;
+        this.chunkSize = randomChunkSize;
+        this.userFile = userFile;
     }
 
     @Override
@@ -32,22 +30,23 @@ public class FileReceiver implements Runnable {
 
         System.out.println("FileReceiver started");
 
-        System.out.println("Downloading file: " + saveAs + " from " + username);
+        System.out.println("Downloading file: " + userFile.getFileName() + " from " + user.getUsername());
 
         FileOutputStream fileOutputStream = null;
-        File file = new File("Files/" + username + "/" + privacy + "/" + saveAs);
+        File file = new File("Files/" + user.getUsername() + "/" + userFile.getAccessType() + "/" + userFile.getFileName());
         try {
 
-            System.out.println("here...");
-            fileUploadSocket.write(chunkSize + " " + fileID);
+            fileUploadSocket.write(chunkSize + " " + userFile.getFileID());
 
             if (!file.exists()) file.createNewFile();
 
-            // receive bytes in chunks of and send acknowledgement after each chunk
+            System.out.println("File size: " + filesize
+                    + " bytes. Chunk size: " + chunkSize + " bytes.");
+
             int bytes = 0;
             fileOutputStream = new FileOutputStream(file);
 
-            byte[] buffer = new byte[chunkSize];
+            byte[] buffer = new byte[10];
             int cnt = 0;
 
             while (filesize > 0 && (bytes = fileUploadSocket.getOIS().read(buffer, 0, (int) Math.min(buffer.length, filesize))) != -1) {
@@ -69,6 +68,7 @@ public class FileReceiver implements Runnable {
             else {
                 System.out.println("File received successfully.");
                 fileUploadSocket.write("FILE_RECEIVED");
+                user.addFile(userFile);
             }
 
 

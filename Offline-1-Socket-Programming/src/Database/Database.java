@@ -14,9 +14,11 @@ public class Database {
 
     // list of users
     private List<User> users = new ArrayList<>();
-    private HashMap<String, User> loggedInUsers = new HashMap<>();
+    private List<User> loggedInUsers = new ArrayList<>();
+    private HashMap<String, User> userMap = new HashMap<>();
     private long totalChunkSize = 0;
     private int fileID = 0;
+    private int requestID = 0;
 
     private Database() {
     }
@@ -38,8 +40,11 @@ public class Database {
             var user = addUser(username);
 
             for(int i = 1; i <= 8; i++) {
-                user.addFile("File_" + username + "_public" + i + ".txt", "public");
-                user.addFile("File_" + username + "_private" + i + ".txt", "private");
+                String filename = "File_" + username + "_public" + i + ".txt";
+                user.addFile(new UserFile(getNewFileID(), filename, "public", user));
+
+                filename = "File_" + username + "_private" + i + ".txt";
+                user.addFile(new UserFile(getNewFileID(), filename, "private", user));
             }
         }
 
@@ -56,6 +61,7 @@ public class Database {
         // create a new user with the username
         User user = new User(username);
         users.add(user);
+        userMap.put(username, user);
 
         System.out.println("Added user : " + user.username);
         // create a folder for the user with the username
@@ -66,37 +72,28 @@ public class Database {
     }
 
     public User getUser(String username) {
-        System.out.println("Finding user : " + username);
-        for (User user : users) {
-            if (user.getUsername().equals(username)) {
-                return user;
-            }
-        }
-        return null;
+        return userMap.get(username);
     }
 
-    public void addLoggedInUser(String username, NetworkUtil socket) {
-        User user = getUser(username);
-        addLoggedInUser(user, socket);
-    }
 
-    public void addLoggedInUser(User user, NetworkUtil socket) {
-        loggedInUsers.put(user.getUsername(), user);
+    public void addLoggedInUser(User user) {
+        loggedInUsers.add(user);
         user.setIsLoggedIn(true);
-        user.setSocket(socket);
     }
 
-
-    public void removeLoggedInUser(String username) {
-        User user = loggedInUsers.get(username);
+    public void removeLoggedInUser(User user) {
         user.setIsLoggedIn(false);
         user.setSocket(null);
-        loggedInUsers.remove(username);
+        loggedInUsers.remove(user);
     }
 
+    public void removeLoggedInUser(String username) {
+        User user = getUser(username);
+        loggedInUsers.remove(user);
+    }
 
     public boolean userLoggedIn(String username) {
-        return loggedInUsers.containsKey(username);
+        return loggedInUsers.contains(getUser(username));
     }
 
     public List<User> getUserList(){
@@ -141,4 +138,25 @@ public class Database {
     public synchronized int getNewFileID() {
         return ++fileID;
     }
+
+    public synchronized int getNewRequestID() {
+        return ++requestID;
+    }
+
+    public ArrayList<User> getUsers() {
+        return (ArrayList<User>) users;
+    }
+
+    public void addRequestMessage(User sender, String message){
+        for(User user : users){
+            if(user != sender){
+                user.addMessage(message);
+            }
+        }
+    }
+
+    public List<User> getLoggedInUsers() {
+        return  loggedInUsers;
+    }
+
 }

@@ -44,7 +44,7 @@ public class ClientHandler implements Runnable {
             if (user == null) user = database.addUser(username);
 
             // add user to logged in users
-            database.addLoggedInUser(user, textSocket);
+            database.addLoggedInUser(user);
 
             // send success message
             textSocket.write("SUCCESS");
@@ -56,8 +56,10 @@ public class ClientHandler implements Runnable {
             fileSocket.setUser(user);
             fileUploadSocket.setUser(user);
 
+            user.setSocket(textSocket);
+
             // create a new thread for the client
-            Thread readThread = new Thread(new ServerReadThread(textSocket, fileSocket, fileUploadSocket, username));
+            Thread readThread = new Thread(new ServerReadThread(textSocket, fileSocket, fileUploadSocket, user));
             readThread.start();
 
         } catch (IOException | ClassNotFoundException e) {

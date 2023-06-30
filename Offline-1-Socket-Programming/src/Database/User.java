@@ -2,16 +2,18 @@ package Database;
 
 import Util.NetworkUtil;
 
-import java.net.Socket;
 import java.util.ArrayList;
+import java.util.List;
 
 public class User {
     String username;
     NetworkUtil textSocket;
     boolean isLoggedIn = false;
 
-    ArrayList<String> publicFiles = new ArrayList<>();
-    ArrayList<String> privateFiles = new ArrayList<>();
+    ArrayList<UserFile> publicFiles = new ArrayList<>();
+    ArrayList<UserFile> privateFiles = new ArrayList<>();
+    List<String> messages = new ArrayList<>();
+    int lastSeenMessage = 0;
 
     public User(String username) {
         this.username = username;
@@ -37,31 +39,34 @@ public class User {
         this.textSocket = socket;
     }
 
-    public void addPublicFile(String filename) {
-        publicFiles.add(filename);
-    }
-
-    public void addPrivateFile(String filename) {
-        privateFiles.add(filename);
-    }
-
-    public ArrayList<String> getPublicFiles() {
+    public ArrayList<UserFile> getPublicFiles() {
         return publicFiles;
     }
 
-    public ArrayList<String> getPrivateFiles() {
+    public ArrayList<UserFile> getPrivateFiles() {
         return privateFiles;
     }
 
-    public void addFile(String filename, String fileType) {
-        if (fileType.equalsIgnoreCase("public")) {
-            addPublicFile(filename);
-        } else {
-            addPrivateFile(filename);
+    public void addFile(UserFile file) {
+        if(file.getAccessType().equalsIgnoreCase("public")){
+            publicFiles.add(file);
+        }else{
+            privateFiles.add(file);
         }
     }
 
-    
+    public void addMessage(String message) {
+        messages.add(message);
+    }
+
+    public List<String> getMessages(boolean unseenOnly) {
+        int temp = lastSeenMessage;
+        lastSeenMessage = messages.size();
+
+        if(!unseenOnly) return messages;
+        return messages.subList(temp, messages.size());
+    }
+
     @Override
     public String toString() {
         return username;

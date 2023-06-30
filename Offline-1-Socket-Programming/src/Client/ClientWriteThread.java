@@ -112,6 +112,13 @@ public class ClientWriteThread implements Runnable {
                     textSocket.write(s);
                 }
 
+                else if(command.equalsIgnoreCase("request")){
+                    textSocket.write(input);
+                }
+
+                else if(command.equalsIgnoreCase("inbox")){
+                    textSocket.write(input);
+                }
 
                 if(command.equalsIgnoreCase("showFiles") && inputArray.length == 2) fileViewUsername = inputArray[1];
                 else if(!command.equalsIgnoreCase("download")) fileViewUsername = username;

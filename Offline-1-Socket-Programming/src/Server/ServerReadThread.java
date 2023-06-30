@@ -1,6 +1,6 @@
 package Server;
 
-import Database.Database;
+import Database.*;
 import Database.User;
 import Util.NetworkUtil;
 
@@ -11,14 +11,15 @@ public class ServerReadThread implements Runnable{
     NetworkUtil fileSocket;
     NetworkUtil fileUploadSocket;
     String username;
+    User user;
     Database database;
 
-
-    public ServerReadThread(NetworkUtil textSocket, NetworkUtil fileSocket, NetworkUtil fileUploadSocket, String username) {
+    public ServerReadThread(NetworkUtil textSocket, NetworkUtil fileSocket, NetworkUtil fileUploadSocket, User user) {
         this.textSocket = textSocket;
         this.fileSocket = fileSocket;
         this.fileUploadSocket = fileUploadSocket;
-        this.username = username;
+        this.user = user;
+        this.username = user.getUsername();
         database = Database.getInstance();
     }
 
@@ -75,8 +76,8 @@ public class ServerReadThread implements Runnable{
 
                     var fileList = targetUser.getPublicFiles();
                     fileListString.append("Public Files : \n");
-                    for (String file : fileList) {
-                        fileListString.append(file + "\n");
+                    for (var file : fileList) {
+                        fileListString.append("\t" + file.getFileName() + "\n");
                     }
 
                     if (fileList.size() == 0) fileListString.append("User " + targetUsername + " has no Public Files\n");
@@ -84,8 +85,8 @@ public class ServerReadThread implements Runnable{
                     if(targetUsername.equals(username)){
                         fileList = targetUser.getPrivateFiles();
                         fileListString.append("Private Files : \n");
-                        for (String file : fileList) {
-                            fileListString.append(file + "\n");
+                        for (var file : fileList) {
+                            fileListString.append("\t" + file.getFileName() + "\n");
                         }
                     }
 
@@ -129,10 +130,60 @@ public class ServerReadThread implements Runnable{
                     int randomChunkSize = (int) (Math.random() * (ENV.MAX_CHUNK_SIZE - ENV.MIN_CHUNK_SIZE + 1) + ENV.MIN_CHUNK_SIZE);
                     int fileID = database.getNewFileID();
 
-                    Thread fileThread = new Thread(new FileReceiver(fileUploadSocket, fileID, inputArray[1], inputArray[2], filesize, randomChunkSize, username));
+                    UserFile file = new UserFile(fileID, inputArray[2], inputArray[1], textSocket.getUser());
+
+                    Thread fileThread = new Thread(new FileReceiver(fileUploadSocket, file, filesize, randomChunkSize));
                     fileThread.start();
                 }
 
+                else if(command.equalsIgnoreCase("request")){
+                    int requestID = database.getNewRequestID();
+                    String description = input.substring(8);
+                    User user = textSocket.getUser();
+
+                    String message = "Request ID : " + requestID + "\n" +
+                            "Sender : " + user.getUsername() + "\n" +
+                            "Description : " + description;
+
+                    new Thread(() -> {
+                        database.addRequestMessage(user, message);
+
+                        for(var activeUser : database.getLoggedInUsers()){
+                            try{
+                                if(user != activeUser)
+                                    activeUser.getSocket().write("You have a new message");
+                            }catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+
+                        try{
+                            textSocket.write("Request sent successfully");
+                            textSocket.write(message);
+                        }catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }).start();
+                }
+
+                else if (command.equalsIgnoreCase("inbox")){
+                    boolean unseenOnly = inputArray.length > 1 && inputArray[1].equalsIgnoreCase("unseen");
+                    var messages = user.getMessages(unseenOnly);
+
+                    if (messages.size() == 0) {
+                        textSocket.write("No messages found"); continue;
+                    }
+
+
+                    StringBuilder messageString = new StringBuilder();
+                    messageString.append("Inbox ---------------------------\n");
+                    for (var message : messages) {
+                        messageString.append(message);
+                        messageString.append("\n\n");
+                    }
+                    messageString.append("------------------------------------");
+                    textSocket.write(messageString.toString());
+                }
 
             }catch (Exception e){
                 e.printStackTrace();

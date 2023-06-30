@@ -1,5 +1,7 @@
 package Client;
 
+import Database.User;
+import Database.UserFile;
 import Server.ENV;
 import Util.NetworkUtil;
 
@@ -24,10 +26,12 @@ public class FileUploaderThread implements Runnable{
     @Override
     public void run() {
         try {
+            System.out.println("FileUploaderThread started");
             if (fileUploadSocket.isClosed()) return;
 
             // read for confirmation from server
             String confirmation = (String) fileUploadSocket.read();
+            System.out.println(confirmation);
 
             if (confirmation.equalsIgnoreCase("FILE_SIZE_EXCEEDED")) {
                 System.out.println("File size exceeded");
@@ -47,6 +51,7 @@ public class FileUploaderThread implements Runnable{
             FileInputStream fileInputStream = new FileInputStream(file);
             byte[] buffer = new byte[10];
 
+            System.out.println("starting upload");
             while ((bytes = fileInputStream.read(buffer)) != -1) {
                 fout.write(buffer, 0, bytes);
                 fout.flush();
@@ -57,6 +62,7 @@ public class FileUploaderThread implements Runnable{
             }
 
             fileInputStream.close();
+
 
         }catch (java.net.SocketTimeoutException e){
             System.out.println("Socket timeout");
