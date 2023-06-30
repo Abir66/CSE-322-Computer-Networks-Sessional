@@ -1,5 +1,6 @@
 package Client;
 
+import Server.ENV;
 import Util.NetworkUtil;
 
 import java.io.*;
@@ -22,23 +23,31 @@ public class FileDownloaderThread implements Runnable {
     @Override
     public void run() {
 
-        System.out.println("Trying to downlaod: " + filename);
+        System.out.println("Downloading: " + filename);
         // create a new file in Downloads folder
         try {
 
-            File file = new File("Downloads/" + filename);
+//            System.out.println(savePath);
+            // if the savepath does not exist, create it
+            File savePathFile = new File(savePath);
+            if(!savePathFile.exists()) savePathFile.mkdirs();
+
+            File file = new File(savePath + "/" + filename);
             if(!file.exists()) file.createNewFile();
 
             int bytes = 0;
             FileOutputStream fileOutputStream = new FileOutputStream(file);
 
             long size = fileSocket.readLong();     // read file size
-            byte[] buffer = new byte[10];
+            byte[] buffer = new byte[ENV.MAX_CHUNK_SIZE];
             while (size > 0 && (bytes = fileSocket.getOIS().read(buffer, 0, (int)Math.min(buffer.length, size))) != -1) {
                 fileOutputStream.write(buffer,0,bytes);
                 size -= bytes;
             }
             fileOutputStream.close();
+
+            System.out.println("Download complete: " + filename);
+            System.out.print("> ");
 
         } catch (IOException e) {
             throw new RuntimeException(e);

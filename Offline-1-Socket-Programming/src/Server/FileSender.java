@@ -28,7 +28,7 @@ public class FileSender implements Runnable{
     }
 
     public void sendFile() throws IOException {
-        System.out.println("Trying Filepath: " + filepath);
+        System.out.println("Sending File " + filepath);
 
         int bytes = 0;
         File file = new File(filepath);
@@ -37,13 +37,14 @@ public class FileSender implements Runnable{
         // send file size
         fout.writeLong(file.length());
         // break file into chunks
-        byte[] buffer = new byte[4*1024];
+        byte[] buffer = new byte[ENV.MAX_CHUNK_SIZE];
 
         while ((bytes=fileInputStream.read(buffer))!=-1){
             fout.write(buffer,0,bytes);
             fout.flush();
         }
         fileInputStream.close();
+        System.out.println("File sent " + filepath);
     }
 
 }

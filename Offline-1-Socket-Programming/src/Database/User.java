@@ -13,6 +13,7 @@ public class User {
     ArrayList<UserFile> publicFiles = new ArrayList<>();
     ArrayList<UserFile> privateFiles = new ArrayList<>();
     List<String> messages = new ArrayList<>();
+    List<FileRequest> requests = new ArrayList<>();
     int lastSeenMessage = 0;
 
     public User(String username) {
@@ -67,9 +68,12 @@ public class User {
         return messages.subList(temp, messages.size());
     }
 
-    @Override
-    public String toString() {
-        return username;
+    public void addRequest(FileRequest request) {
+        requests.add(request);
+    }
+
+    public List<FileRequest> getRequests() {
+        return requests;
     }
 
 }

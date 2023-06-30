@@ -4,9 +4,6 @@ import Server.ENV;
 import Util.NetworkUtil;
 
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
 import java.util.Scanner;
 
 public class Client {
@@ -32,8 +29,8 @@ public class Client {
         System.out.println(response);
 
         if (response.equals("DUPLICATE_USER_ERROR")){
-            System.out.println("You are already logged in another client.");
-            System.out.println("Closing connection...");
+            System.out.println("> You are already logged in another client.");
+            System.out.println("> Closing connection...");
             textSocket.closeConnection();
             return;
         }

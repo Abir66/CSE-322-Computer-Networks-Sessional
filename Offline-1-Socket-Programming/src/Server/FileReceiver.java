@@ -3,8 +3,10 @@ package Server;
 import Database.*;
 import Util.NetworkUtil;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 
 public class FileReceiver implements Runnable {
 
@@ -15,22 +17,23 @@ public class FileReceiver implements Runnable {
     private long filesize;
     private Database database = Database.getInstance();
     private UserFile userFile;
+    private int requestID;
 
 
-    public FileReceiver(NetworkUtil fileUploadSocket, UserFile userFile, long filesize, int randomChunkSize) {
+    public FileReceiver(NetworkUtil fileUploadSocket, UserFile userFile, long filesize, int randomChunkSize, int requestID) {
         this.fileUploadSocket = fileUploadSocket;
         this.user = userFile.getOwner();
         this.filesize = filesize;
         this.chunkSize = randomChunkSize;
         this.userFile = userFile;
+        this.requestID = requestID;
     }
 
     @Override
     public void run() {
 
-        System.out.println("FileReceiver started");
-
-        System.out.println("Downloading file: " + userFile.getFileName() + " from " + user.getUsername());
+        System.out.println("Receiving file: " + userFile.getFileName() + " from " + user.getUsername());
+        database.addChunk(chunkSize);
 
         FileOutputStream fileOutputStream = null;
         File file = new File("Files/" + user.getUsername() + "/" + userFile.getAccessType() + "/" + userFile.getFileName());
@@ -38,53 +41,87 @@ public class FileReceiver implements Runnable {
 
             fileUploadSocket.write(chunkSize + " " + userFile.getFileID());
 
-            if (!file.exists()) file.createNewFile();
+            file.createNewFile();
 
-            System.out.println("File size: " + filesize
-                    + " bytes. Chunk size: " + chunkSize + " bytes.");
+            System.out.println("File size: " + filesize + " bytes. Chunk size: " + chunkSize + " bytes.");
 
             int bytes = 0;
             fileOutputStream = new FileOutputStream(file);
-
-            byte[] buffer = new byte[10];
+            byte[] buffer = new byte[chunkSize];
             int cnt = 0;
 
-            while (filesize > 0 && (bytes = fileUploadSocket.getOIS().read(buffer, 0, (int) Math.min(buffer.length, filesize))) != -1) {
-                fileOutputStream.write(buffer, 0, bytes);
-                filesize -= bytes;
-                database.removeChunk(bytes);
+            var is = fileUploadSocket.getOIS();
 
+
+            while (filesize > 0) {
+
+                int bytesRead = 0;
+                int bytesToRead = 0;
+
+                try {
+                    bytesToRead = (int) fileUploadSocket.read();
+                } catch (Exception e) {
+                    return;
+                }
+
+                System.out.println("bytes to read: " + bytesToRead);
+
+                while (bytesToRead > 0 && fileUploadSocket.getOIS().available() > 0 && (bytes = fileUploadSocket.getOIS().read(buffer, 0, (int) Math.min(chunkSize, filesize))) > 0) {
+                    fileOutputStream.write(buffer, 0, bytes);
+                    bytesToRead -= bytes;
+                    bytesRead += bytes;
+                }
+
+                filesize -= bytesRead;
+                database.removeChunk(bytesToRead);
+                System.out.println("received Chunk#" + cnt + " " + bytesRead + " bytes");
                 // send acknowledgement
-                fileUploadSocket.write("ACK received Chunk#" + cnt++ + " " + bytes + " bytes");
+                fileUploadSocket.write("ACK received Chunk#" + cnt++ + " " + bytesRead + " bytes");
             }
 
-
-
-            if(filesize > 0) {
-                System.out.println("File not completely received. Deleting file.");
-                fileUploadSocket.write("ERROR_UPLOADING_FILE");
-            }
-
-            else {
+            // read
+            fileUploadSocket.read();
+            if (filesize == 0) {
                 System.out.println("File received successfully.");
                 fileUploadSocket.write("FILE_RECEIVED");
                 user.addFile(userFile);
-            }
 
+                // if requestID is not -1
+                if (requestID != -1) {
+                    var request = database.getFileRequest(requestID);
+                    var requester = request.getRequester();
+                    String message = user.getUsername() + " has added a new file in response of your request.\n"
+                            + "Request ID: " + requestID + "\n"
+                            + "File Name: " + userFile.getFileName() + "\n"
+                            + "Description: " + request.getDescription();
+
+                    request.addFile(userFile);
+                    requester.addMessage(message);
+                    requester.getSocket().write("You have a new message.");
+                }
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
             try {
                 fileOutputStream.close();
-                if(filesize > 0){
-                    file.delete();
-                    database.removeChunk(filesize);
-                }
-            } catch (Exception e) {
+            } catch (IOException e) {
                 e.printStackTrace();
             }
+
+            if (filesize > 0) cancel(file, filesize);
         }
     }
 
+    void cancel(File file, long filesize) {
+        try {
+            System.out.println("File not completely received. Deleting file.");
+            fileUploadSocket.write("ERROR_UPLOADING_FILE");
+            file.delete();
+            database.removeChunk(filesize);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }

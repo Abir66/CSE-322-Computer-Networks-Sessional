@@ -8,7 +8,7 @@ import java.net.ServerSocket;
 
 
 public class Server {
-    public static void main(String[] args) throws IOException, ClassNotFoundException {
+    public static void main(String[] args) throws IOException{
         ServerSocket serverSocket = new ServerSocket(ENV.SERVER_PORT);
         ServerSocket fileServerSocket = new ServerSocket(ENV.SERVER_FILE_PORT);
         ServerSocket fileUploadServerSocket = new ServerSocket(ENV.FILE_UPLOAD_PORT);

@@ -1,7 +1,5 @@
 package Database;
 
-import Util.NetworkUtil;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,6 +14,7 @@ public class Database {
     private List<User> users = new ArrayList<>();
     private List<User> loggedInUsers = new ArrayList<>();
     private HashMap<String, User> userMap = new HashMap<>();
+    private HashMap<Integer, FileRequest> fileRequests = new HashMap<>();
     private long totalChunkSize = 0;
     private int fileID = 0;
     private int requestID = 0;
@@ -87,11 +86,6 @@ public class Database {
         loggedInUsers.remove(user);
     }
 
-    public void removeLoggedInUser(String username) {
-        User user = getUser(username);
-        loggedInUsers.remove(user);
-    }
-
     public boolean userLoggedIn(String username) {
         return loggedInUsers.contains(getUser(username));
     }
@@ -106,25 +100,22 @@ public class Database {
 
         if(user == null) return "USER_NOT_FOUND";
 
-        if(user.getPublicFiles().contains(filename))
-            return "Files/" + owner + "/public/" + filename;
-
-        if(user.getPrivateFiles().contains(filename)){
-            if(requester.equals(owner))
-                return "Files/" + owner + "/private/" + filename;
-            else
-                return "ACCESS_DENIED";
+        for(var file : user.getPublicFiles()){
+            if (file.getFileName().equals(filename))
+                return "Files/" + owner + "/public/" + filename;
         }
 
+        for(var file : user.getPrivateFiles()){
+            if (file.getFileName().equals(filename)){
+                if(requester.equals(owner)) return "Files/" + owner + "/private/" + filename;
+                else return "ACCESS_DENIED";
+            }
+        }
         return "FILE_NOT_FOUND";
     }
 
     public synchronized long getTotalChunkSize() {
         return totalChunkSize;
-    }
-
-    public synchronized void setTotalChunkSize(long totalChunkSize) {
-        this.totalChunkSize = totalChunkSize;
     }
 
     public synchronized void addChunk(long chunkSize) {
@@ -157,6 +148,15 @@ public class Database {
 
     public List<User> getLoggedInUsers() {
         return  loggedInUsers;
+    }
+
+    public void addFileRequest(FileRequest fileRequest){
+        fileRequests.put(fileRequest.getRequestID(), fileRequest);
+        fileRequest.getRequester().addRequest(fileRequest);
+    }
+
+    public FileRequest getFileRequest(int requestID){
+        return fileRequests.get(requestID);
     }
 
 }

@@ -4,13 +4,15 @@ import Database.*;
 import Database.User;
 import Util.NetworkUtil;
 
+import java.io.EOFException;
+import java.io.IOException;
+
 
 public class ServerReadThread implements Runnable{
 
     NetworkUtil textSocket;
     NetworkUtil fileSocket;
     NetworkUtil fileUploadSocket;
-    String username;
     User user;
     Database database;
 
@@ -19,7 +21,6 @@ public class ServerReadThread implements Runnable{
         this.fileSocket = fileSocket;
         this.fileUploadSocket = fileUploadSocket;
         this.user = user;
-        this.username = user.getUsername();
         database = Database.getInstance();
     }
 
@@ -30,23 +31,31 @@ public class ServerReadThread implements Runnable{
 
             try{
                 String input = (String) textSocket.read();
+                System.out.println("> " + user.getUsername() + "\t: " + input);
                 String[] inputArray = input.split(" ");
                 String command = inputArray[0];
 
                 if(command.equalsIgnoreCase("logout")){
-                    database.removeLoggedInUser(username);
+                    database.removeLoggedInUser(user);
                     textSocket.closeConnection();
+                    fileSocket.closeConnection();
+                    fileUploadSocket.closeConnection();
+                    System.out.println("User " + user.getUsername() + " logged out");
                     return;
                 }
 
-                else if(command.equalsIgnoreCase("userlist")){
+                else if(command.equalsIgnoreCase("users")){
+
+                    if(inputArray.length > 1) {
+                        textSocket.write("Invalid Argument");
+                        continue;
+                    }
+
                     var userList = database.getUserList();
                     StringBuilder userListString = new StringBuilder();
                     userListString.append("User List ---------------------------\n");
-                    System.out.println(userList.size());
                     for (User user : userList) {
                         userListString.append(user.getUsername());
-                        System.out.println(user.getUsername());
                         if (user.getIsLoggedIn()) userListString.append(" (online)");
                         userListString.append("\n");
                     }
@@ -54,24 +63,24 @@ public class ServerReadThread implements Runnable{
                     textSocket.write(userListString.toString());
                 }
 
-                else if(command.equalsIgnoreCase("showFiles")){
+                else if(command.equalsIgnoreCase("files")){
 
-                    String targetUsername = null;
-
-                    if(inputArray.length > 1) targetUsername = inputArray[1];
-                    else targetUsername = username;
-
-                    User targetUser = database.getUser(targetUsername);
-
-                    StringBuilder fileListString = new StringBuilder();
-
-                    if(targetUser == null){
-                        fileListString.append("User " + targetUsername + " does not exist\n");
-                        textSocket.write(fileListString.toString());
+                    if(inputArray.length > 2) {
+                        textSocket.write("Invalid Arguments");
                         continue;
                     }
 
-                    fileListString.append("Showing Files of User : " + targetUsername + "\n");
+                    User targetUser = null;
+                    if(inputArray.length == 1) targetUser = user;
+                    else  targetUser = database.getUser(inputArray[1]);
+
+                    if(targetUser == null){
+                        textSocket.write("User " + inputArray[1] + " does not exist");
+                        continue;
+                    }
+
+                    StringBuilder fileListString = new StringBuilder();
+                    fileListString.append("Showing Files of User : " + targetUser.getUsername() + "\n");
                     fileListString.append("------------------------------------\n");
 
                     var fileList = targetUser.getPublicFiles();
@@ -80,9 +89,9 @@ public class ServerReadThread implements Runnable{
                         fileListString.append("\t" + file.getFileName() + "\n");
                     }
 
-                    if (fileList.size() == 0) fileListString.append("User " + targetUsername + " has no Public Files\n");
+                    if (fileList.size() == 0) fileListString.append("\tUser " + targetUser.getUsername() + " has no Public Files\n");
 
-                    if(targetUsername.equals(username)){
+                    if(targetUser == user){
                         fileList = targetUser.getPrivateFiles();
                         fileListString.append("Private Files : \n");
                         for (var file : fileList) {
@@ -90,8 +99,7 @@ public class ServerReadThread implements Runnable{
                         }
                     }
 
-                    if (fileList.size() == 0) fileListString.append("User " + targetUsername + " has no Private Files\n");
-
+                    if (fileList.size() == 0) fileListString.append("\tUser " + targetUser.getUsername() + " has no Private Files\n");
                     fileListString.append("------------------------------------");
                     textSocket.write(fileListString.toString());
                 }
@@ -103,7 +111,7 @@ public class ServerReadThread implements Runnable{
                         continue;
                     }
 
-                    String filepath = database.getFilePath(inputArray[2], inputArray[1], username);
+                    String filepath = database.getFilePath(inputArray[2], inputArray[1], user.getUsername());
 
                     if(!filepath.startsWith("Files/")){
                         textSocket.write(filepath);
@@ -116,11 +124,20 @@ public class ServerReadThread implements Runnable{
 
 
                 else if(command.equalsIgnoreCase("upload")){
+
+                    // upload private/public filesize req_id=n filename
                     System.out.println(input);
 
-                    long filesize = Long.parseLong(inputArray[3]);
+                    long filesize = Long.parseLong(inputArray[2]);
+                    String filename = input.split(" ", 5)[4];
+                    int requestID = -1;
+                    try {
+                        requestID = Integer.parseInt(inputArray[3].split("=")[1]);
+                    } catch(Exception e) {
+                        fileUploadSocket.write("INVALID REQUEST ID");
+                        continue;
+                    }
 
-                    // if file size is greater than 1GB
                     if(filesize + database.getTotalChunkSize() > ENV.MAX_BUFFER_SIZE){
                         System.out.println("file size : " + filesize + " total chunk size : " + database.getTotalChunkSize());
                         fileUploadSocket.write("FILE_SIZE_EXCEEDED");
@@ -130,13 +147,18 @@ public class ServerReadThread implements Runnable{
                     int randomChunkSize = (int) (Math.random() * (ENV.MAX_CHUNK_SIZE - ENV.MIN_CHUNK_SIZE + 1) + ENV.MIN_CHUNK_SIZE);
                     int fileID = database.getNewFileID();
 
-                    UserFile file = new UserFile(fileID, inputArray[2], inputArray[1], textSocket.getUser());
+                    UserFile file = new UserFile(fileID, filename, inputArray[1], textSocket.getUser());
 
-                    Thread fileThread = new Thread(new FileReceiver(fileUploadSocket, file, filesize, randomChunkSize));
+                    Thread fileThread = new Thread(new FileReceiver(fileUploadSocket, file, filesize, randomChunkSize, requestID));
                     fileThread.start();
                 }
 
-                else if(command.equalsIgnoreCase("request")){
+                else if(command.equalsIgnoreCase("make_req")){
+                    if(inputArray.length < 2) {
+                        textSocket.write("ERR : No description provided");
+                        continue;
+                    }
+
                     int requestID = database.getNewRequestID();
                     String description = input.substring(8);
                     User user = textSocket.getUser();
@@ -158,7 +180,8 @@ public class ServerReadThread implements Runnable{
                         }
 
                         try{
-                            textSocket.write("Request sent successfully");
+                            database.addFileRequest(new FileRequest(requestID, user, description));
+                            textSocket.write("Request added successfully");
                             textSocket.write(message);
                         }catch (Exception e) {
                             e.printStackTrace();
@@ -167,13 +190,18 @@ public class ServerReadThread implements Runnable{
                 }
 
                 else if (command.equalsIgnoreCase("inbox")){
+
+                    if(inputArray.length > 2 || (inputArray.length == 2 && !inputArray[1].equalsIgnoreCase("unseen"))){
+                        textSocket.write("Invalid Argument");
+                        continue;
+                    }
+
                     boolean unseenOnly = inputArray.length > 1 && inputArray[1].equalsIgnoreCase("unseen");
                     var messages = user.getMessages(unseenOnly);
 
                     if (messages.size() == 0) {
                         textSocket.write("No messages found"); continue;
                     }
-
 
                     StringBuilder messageString = new StringBuilder();
                     messageString.append("Inbox ---------------------------\n");
@@ -185,13 +213,60 @@ public class ServerReadThread implements Runnable{
                     textSocket.write(messageString.toString());
                 }
 
-            }catch (Exception e){
+                else if(command.equalsIgnoreCase("request")){
+
+                    if (inputArray.length == 1){
+                        var requests = user.getRequests();
+                        if (requests.size() == 0) {
+                            textSocket.write("No requests found"); continue;
+                        }
+
+                        StringBuilder requestString = new StringBuilder();
+                        requestString.append("Requests ---------------------------\n");
+                        for (var request : requests) {
+                            requestString.append(request.getDetails());
+                            requestString.append("\n\n");
+                        }
+                        requestString.append("------------------------------------");
+                        textSocket.write(requestString.toString());
+                    }
+
+                    else if(inputArray.length > 2 || !inputArray[1].matches("\\d+")){
+                        textSocket.write("Invalid Argument");
+                    }
+
+                    else{
+                        int requestID = Integer.parseInt(inputArray[1]);
+                        var request = database.getFileRequest(requestID);
+
+                        if(request == null){
+                            textSocket.write("Request not found");
+                            continue;
+                        }
+                        textSocket.write(request.getDetails());
+                    }
+                }
+
+            }catch (EOFException e){
+                System.out.println("Client " + user.getUsername() + " disconnected");
+                database.removeLoggedInUser(user);
+
+                try {
+                    fileSocket.closeConnection();
+                    fileUploadSocket.closeConnection();
+                } catch (Exception e1) {
+                    break;
+                }
+
+                break;
+            }
+            catch (Exception e){
                 e.printStackTrace();
                 break;
             }
         }
 
-        database.removeLoggedInUser(username);
+        database.removeLoggedInUser(user);
 
     }
 }
