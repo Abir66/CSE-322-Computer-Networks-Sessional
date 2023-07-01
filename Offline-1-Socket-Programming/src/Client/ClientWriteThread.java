@@ -101,14 +101,6 @@ public class ClientWriteThread implements Runnable {
                 }
 
                 else if(command.equalsIgnoreCase("download")) {
-                    // download [username] filename
-                    String s = input;
-                    String filename = inputArray[2];
-
-                    if(inputArray.length == 2) {
-                        s = "download " + fileViewUsername + " " + inputArray[1];
-                        filename = inputArray[1];
-                    }
 
                     // select a folder to save with JFileChooser
                     JFileChooser fileChooser = new JFileChooser();
@@ -123,10 +115,10 @@ public class ClientWriteThread implements Runnable {
 
                     if(savePath == null) savePath = "Downloads/" + username;
 
-                    Thread fileDownloaderThread = new Thread(new FileDownloaderThread(textSocket, fileSocket, filename, savePath));
+                    Thread fileDownloaderThread = new Thread(new FileDownloaderThread(fileSocket, savePath));
                     fileDownloaderThread.start();
 
-                    textSocket.write(s);
+                    textSocket.write(input);
                 }
 
                 else if(command.equalsIgnoreCase("make_req")){

@@ -15,6 +15,7 @@ public class Database {
     private List<User> loggedInUsers = new ArrayList<>();
     private HashMap<String, User> userMap = new HashMap<>();
     private HashMap<Integer, FileRequest> fileRequests = new HashMap<>();
+    private HashMap<Integer, UserFile> fileMap = new HashMap<>();
     private long totalChunkSize = 0;
     private int fileID = 0;
     private int requestID = 0;
@@ -38,12 +39,16 @@ public class Database {
         for (String username : usernames) {
             var user = addUser(username);
 
-            for(int i = 1; i <= 8; i++) {
+            for(int i = 1; i <= 5; i++) {
                 String filename = "File_" + username + "_public" + i + ".txt";
-                user.addFile(new UserFile(getNewFileID(), filename, "public", user));
+                var file = new UserFile(getNewFileID(), filename, "public", user);
+                user.addFile(file);
+                fileMap.put(file.getFileID(), file);
 
                 filename = "File_" + username + "_private" + i + ".txt";
-                user.addFile(new UserFile(getNewFileID(), filename, "private", user));
+                file = new UserFile(getNewFileID(), filename, "private", user);
+                user.addFile(file);
+                fileMap.put(file.getFileID(), file);
             }
         }
 
@@ -73,7 +78,6 @@ public class Database {
     public User getUser(String username) {
         return userMap.get(username);
     }
-
 
     public void addLoggedInUser(User user) {
         loggedInUsers.add(user);
@@ -114,6 +118,24 @@ public class Database {
         return "FILE_NOT_FOUND";
     }
 
+    public String getFilePath(int fileID, User requester){
+        UserFile file = fileMap.get(fileID);
+
+        if(file == null) return "FILE_NOT_FOUND";
+
+        // if file is public
+        if(file.getAccessType().equals("public")) return file.getPath();
+
+        else{
+            if (file.getOwner() == requester) return file.getPath();
+            else return "ACCESS_DENIED";
+        }
+    }
+
+    public UserFile getFile(int FileID){
+        return fileMap.get(FileID);
+    }
+
     public synchronized long getTotalChunkSize() {
         return totalChunkSize;
     }
@@ -132,10 +154,6 @@ public class Database {
 
     public synchronized int getNewRequestID() {
         return ++requestID;
-    }
-
-    public ArrayList<User> getUsers() {
-        return (ArrayList<User>) users;
     }
 
     public void addRequestMessage(User sender, String message){
@@ -157,6 +175,10 @@ public class Database {
 
     public FileRequest getFileRequest(int requestID){
         return fileRequests.get(requestID);
+    }
+
+    public void addFile(UserFile file) {
+        fileMap.put(file.getFileID(), file);
     }
 
 }

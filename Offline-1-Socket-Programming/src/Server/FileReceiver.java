@@ -85,6 +85,7 @@ public class FileReceiver implements Runnable {
                 System.out.println("File received successfully.");
                 fileUploadSocket.write("FILE_RECEIVED");
                 user.addFile(userFile);
+                database.addFile(userFile);
 
                 // if requestID is not -1
                 if (requestID != -1) {
@@ -124,4 +125,5 @@ public class FileReceiver implements Runnable {
             e.printStackTrace();
         }
     }
+
 }

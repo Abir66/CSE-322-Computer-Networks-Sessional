@@ -4,30 +4,33 @@ import Server.ENV;
 import Util.NetworkUtil;
 
 import java.io.*;
-import java.net.Socket;
+
 
 public class FileDownloaderThread implements Runnable {
 
-    private NetworkUtil textSocket;
     private NetworkUtil fileSocket;
-    private String filename;
     private String savePath;
 
-    public FileDownloaderThread(NetworkUtil textSocket, NetworkUtil fileSocket, String filename, String savePath) {
-        this.textSocket = textSocket;
+    public FileDownloaderThread(NetworkUtil fileSocket, String savePath) {
         this.fileSocket = fileSocket;
-        this.filename = filename;
         this.savePath = savePath;
     }
 
     @Override
     public void run() {
 
-        System.out.println("Downloading: " + filename);
-        // create a new file in Downloads folder
         try {
 
-//            System.out.println(savePath);
+            String confirmation = (String) fileSocket.read();
+            if (!confirmation.equalsIgnoreCase("FILE_FOUND")) {
+                System.out.println(confirmation);
+                System.out.print("> ");
+                return;
+            }
+
+            String filename = (String) fileSocket.read();
+            System.out.println("Downloading: " + filename);
+
             // if the savepath does not exist, create it
             File savePathFile = new File(savePath);
             if(!savePathFile.exists()) savePathFile.mkdirs();
@@ -49,8 +52,8 @@ public class FileDownloaderThread implements Runnable {
             System.out.println("Download complete: " + filename);
             System.out.print("> ");
 
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
     }

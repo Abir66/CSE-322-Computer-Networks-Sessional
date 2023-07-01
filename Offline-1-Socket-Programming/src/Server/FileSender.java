@@ -36,6 +36,7 @@ public class FileSender implements Runnable{
 
         // send file size
         fout.writeLong(file.length());
+        fout.flush();
         // break file into chunks
         byte[] buffer = new byte[ENV.MAX_CHUNK_SIZE];
 

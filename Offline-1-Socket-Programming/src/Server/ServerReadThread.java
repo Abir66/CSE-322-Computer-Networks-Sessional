@@ -86,7 +86,7 @@ public class ServerReadThread implements Runnable{
                     var fileList = targetUser.getPublicFiles();
                     fileListString.append("Public Files : \n");
                     for (var file : fileList) {
-                        fileListString.append("\t" + file.getFileName() + "\n");
+                        fileListString.append("\t" + file.getFileName() + " (fileID : "+ file.getFileID() + ")\n");
                     }
 
                     if (fileList.size() == 0) fileListString.append("\tUser " + targetUser.getUsername() + " has no Public Files\n");
@@ -95,7 +95,7 @@ public class ServerReadThread implements Runnable{
                         fileList = targetUser.getPrivateFiles();
                         fileListString.append("Private Files : \n");
                         for (var file : fileList) {
-                            fileListString.append("\t" + file.getFileName() + "\n");
+                            fileListString.append("\t" + file.getFileName() + " (fileID : "+ file.getFileID() + ")\n");
                         }
                     }
 
@@ -106,18 +106,50 @@ public class ServerReadThread implements Runnable{
 
                 else if(command.equalsIgnoreCase("download")){
 
-                    if(inputArray.length < 3) {
-                        textSocket.write("Invalid no of arguments");
+                    String filepath;
+                    String filename;
+
+                    if(inputArray.length < 2) {
+                        fileSocket.write("Invalid no of arguments");
                         continue;
                     }
 
-                    String filepath = database.getFilePath(inputArray[2], inputArray[1], user.getUsername());
+                    if(inputArray.length == 2){
+                        // if 2nd argument is a number, then it is a fileID
+                        int fileID = -1;
+                        try {
+                            fileID = Integer.parseInt(inputArray[1]);
+                        } catch(Exception e) {
+                            fileSocket.write("Invalid Argument");
+                            continue;
+                        }
+
+                        var file = database.getFile(fileID);
+                        if(file == null){
+                            fileSocket.write("Invalid FileID");
+                            continue;
+                        }
+
+                        filename = file.getFileName();
+                        filepath = database.getFilePath(fileID, user);
+                    }
+
+                    else{
+                        filename = input.split(" ", 3)[2];
+                        filepath = database.getFilePath(filename, inputArray[1], user.getUsername());
+                    }
+
 
                     if(!filepath.startsWith("Files/")){
-                        textSocket.write(filepath);
+                        fileSocket.write(filepath);
                         continue;
                     }
 
+                    else{
+                        fileSocket.write("FILE_FOUND");
+                    }
+
+                    fileSocket.write(filename);
                     Thread fileThread = new Thread(new FileSender(fileSocket, filepath));
                     fileThread.start();
                 }
