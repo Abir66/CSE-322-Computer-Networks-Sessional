@@ -26,7 +26,7 @@ public class Database {
     public static Database getInstance() {
         if (instance == null) {
             instance = new Database();
-            //instance.init();
+            instance.init();
         }
         return instance;
     }
